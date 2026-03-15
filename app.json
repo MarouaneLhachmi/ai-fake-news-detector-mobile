@@ -5,7 +5,6 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
@@ -13,6 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0d1117"
       },
       "package": "com.marouanelhachmi.aifakenewsdetector",
@@ -20,20 +20,6 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.INTERNET"
-      ],
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "aifakenewsdetector",
-              "host": "auth",
-              "pathPrefix": "/callback"
-            }
-          ],
-          "category": ["BROWSABLE", "DEFAULT"]
-        }
       ]
     },
     "plugins": [
@@ -50,7 +36,10 @@
     ],
     "scheme": "aifakenewsdetector",
     "extra": {
-      "router": { "origin": false }
+      "router": { "origin": false },
+      "eas": {
+        "projectId": "505af80c-d79f-424e-a2a0-6cdaf0827591"
+      }
     }
   }
 }
