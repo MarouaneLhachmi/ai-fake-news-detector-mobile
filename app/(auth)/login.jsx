@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, ActivityIndicator, Alert, Linking,
@@ -14,9 +14,41 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
-  const { setUser, checkSession } = useAuth();
+  const { setUser } = useAuth();
 
+  // ── Deep-link listener: when Google redirects back to the app ──
+  useEffect(() => {
+    const handleDeepLink = async ({ url }) => {
+      // The app will receive aifakenewsdetector://auth/callback (or similar)
+      // after Google OAuth completes. We then fetch the session.
+      if (url && url.includes('aifakenewsdetector')) {
+        setGoogleLoading(true);
+        try {
+          const sessionRes = await fetch(`${BASE_URL}/api/auth/session`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+          });
+          const session = await sessionRes.json();
+          if (session?.user) {
+            setUser(session.user);
+            router.replace('/(tabs)');
+          } else {
+            Alert.alert('Google Sign-In', 'Sign-in incomplete. Please try again.');
+          }
+        } catch {
+          Alert.alert('Error', 'Could not verify Google session.');
+        }
+        setGoogleLoading(false);
+      }
+    };
+
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    return () => subscription.remove();
+  }, []);
+
+  // ── Credentials login ─────────────────────────────────
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields.');
@@ -24,21 +56,28 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      // Fetch CSRF token
       const csrfRes = await fetch(`${BASE_URL}/api/auth/csrf`);
       const { csrfToken } = await csrfRes.json();
 
-      // Login
-      const body = new URLSearchParams({ email, password, csrfToken, redirect: 'false', json: 'true' });
-      const res = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
+      const body = new URLSearchParams({
+        email,
+        password,
+        csrfToken,
+        redirect: 'false',
+        json: 'true',
+      });
+
+      await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
         credentials: 'include',
       });
 
-      // Get session
-      const sessionRes = await fetch(`${BASE_URL}/api/auth/session`, { credentials: 'include' });
+      const sessionRes = await fetch(`${BASE_URL}/api/auth/session`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' },
+      });
       const session = await sessionRes.json();
 
       if (session?.user) {
@@ -47,14 +86,35 @@ export default function LoginScreen() {
       } else {
         Alert.alert('Login Failed', 'Invalid email or password.');
       }
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Connection failed. Check your internet.');
     }
     setLoading(false);
   };
 
-  const handleGoogleLogin = () => {
-    Linking.openURL(`${BASE_URL}/api/auth/signin/google?callbackUrl=${BASE_URL}`);
+  // ── Google OAuth — open in system browser ─────────────
+  // Google blocks WebView (disallowed_useragent).
+  // Solution: open in the native browser. After OAuth, NextAuth
+  // will redirect to the callbackUrl which we set to the app's deep-link scheme.
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      // Build the Google OAuth URL with a deep-link callbackUrl
+      const callbackUrl = encodeURIComponent('aifakenewsdetector://auth/callback');
+      const googleOAuthUrl = `${BASE_URL}/api/auth/signin/google?callbackUrl=${callbackUrl}`;
+      
+      const canOpen = await Linking.canOpenURL(googleOAuthUrl);
+      if (canOpen) {
+        await Linking.openURL(googleOAuthUrl);
+        // Session check will happen in the deep-link handler above
+      } else {
+        Alert.alert('Error', 'Cannot open browser for Google sign-in.');
+        setGoogleLoading(false);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not open Google sign-in.');
+      setGoogleLoading(false);
+    }
   };
 
   return (
@@ -71,10 +131,26 @@ export default function LoginScreen() {
       </View>
 
       {/* Google Button */}
-      <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleLogin}>
-        <Ionicons name="logo-google" size={20} color="#fff" />
-        <Text style={styles.googleText}>Continue with Google</Text>
+      <TouchableOpacity
+        style={[styles.googleBtn, googleLoading && { opacity: 0.7 }]}
+        onPress={handleGoogleLogin}
+        disabled={googleLoading || loading}
+      >
+        {googleLoading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Ionicons name="logo-google" size={20} color="#fff" />
+        )}
+        <Text style={styles.googleText}>
+          {googleLoading ? 'Opening browser...' : 'Continue with Google'}
+        </Text>
       </TouchableOpacity>
+
+      {googleLoading && (
+        <Text style={styles.googleHint}>
+          Complete sign-in in your browser, then return to this app.
+        </Text>
+      )}
 
       {/* Divider */}
       <View style={styles.divider}>
@@ -83,7 +159,7 @@ export default function LoginScreen() {
         <View style={styles.dividerLine} />
       </View>
 
-      {/* Email */}
+      {/* Email input */}
       <View style={styles.inputWrapper}>
         <Ionicons name="mail-outline" size={20} color={Colors.textMuted} style={styles.inputIcon} />
         <TextInput
@@ -97,7 +173,7 @@ export default function LoginScreen() {
         />
       </View>
 
-      {/* Password */}
+      {/* Password input */}
       <View style={styles.inputWrapper}>
         <Ionicons name="lock-closed-outline" size={20} color={Colors.textMuted} style={styles.inputIcon} />
         <TextInput
@@ -113,8 +189,12 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Login Button */}
-      <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+      {/* Login button */}
+      <TouchableOpacity
+        style={[styles.loginBtn, loading && { opacity: 0.7 }]}
+        onPress={handleLogin}
+        disabled={loading || googleLoading}
+      >
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
@@ -122,7 +202,7 @@ export default function LoginScreen() {
         )}
       </TouchableOpacity>
 
-      {/* Signup link */}
+      {/* Footer */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>Don't have an account? </Text>
         <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
@@ -144,6 +224,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#4285F4', borderRadius: BorderRadius.md, padding: Spacing.md,
   },
   googleText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  googleHint: {
+    color: Colors.textMuted, fontSize: 12, textAlign: 'center',
+    marginTop: Spacing.sm, lineHeight: 18,
+  },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.lg },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
   dividerText: { color: Colors.textMuted, marginHorizontal: Spacing.md, fontSize: 13 },

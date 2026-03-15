@@ -1,76 +1,63 @@
-# AI Fake News Detector — Mobile App
+# AI Fake News Detector — Mobile App (SDK 53)
 
 React Native + Expo mobile application for the AI Fake News Detector platform.
 
 ## Tech Stack
-- **React Native** + **Expo** (SDK 51)
-- **Expo Router** — file-based navigation
+- **React Native** + **Expo SDK 53**
+- **Expo Router 4** — file-based navigation
 - **Axios** — API calls to the Vercel backend
 - **Expo Image Picker** — camera & gallery access
 - **Expo Secure Store** — secure token storage
 
 ## Backend
-This app connects to the existing Next.js backend hosted on Vercel:
 `https://ai-fake-news-detector01.vercel.app`
 
-No backend changes required — all APIs are reused as-is.
+---
 
-## Features
-- Login / Signup (credentials + Google OAuth)
-- Analyze news: image upload, image URL, article URL, text
-- Analysis results with confidence score, bias, tone, claims
-- Analysis history
-- Live news feed with one-tap analysis
-- AI-generated quiz
-- Personal dashboard with statistics
-- User profile management
+## All Bugs Fixed (SDK 53 + Runtime)
+
+### SDK 53 compatibility fixes
+| # | File | Problem | Fix |
+|---|------|---------|-----|
+| 1 | `services/AuthContext.js` | Import circulaire `../services/api` | → `./api` |
+| 2 | `app/(tabs)/index.jsx` | `MediaTypeOptions.Images` déprécié | → `'images'` |
+| 3 | `app/_layout.jsx` | `GestureHandlerRootView` sans dépendance | → Supprimé |
+| 4 | `babel.config.js` | Plugin reanimated sans lib | → Supprimé |
+| 5 | `app.json` | Manque `newArchEnabled: true` | → Ajouté |
+
+### Runtime bugs (visible sur les screenshots)
+| # | Bug | Cause | Fix |
+|---|-----|-------|-----|
+| 6 | **"Could not load quiz"** | `generateQuiz` faisait un GET, mais le backend attend un **POST** avec `{topic, difficulty}` | → `api.js`: méthode POST + body JSON |
+| 7 | **Quiz: mauvaise réponse toujours "wrong"** | `correctAnswer` du backend est un **index (0-3)** mais le code comparait avec la **string** de l'option | → `quiz.jsx`: comparaison par index |
+| 8 | **Google OAuth: 403 disallowed_useragent** | React Native WebView est bloqué par Google | → `login.jsx`: ouverture dans le **navigateur système** + deep-link callback |
+
+---
+
+## Google OAuth — Comment ça marche maintenant
+
+1. L'utilisateur tape "Continue with Google"
+2. L'app ouvre le navigateur système (Chrome/Firefox) → Google accepte ✅
+3. Après connexion, NextAuth redirige vers `aifakenewsdetector://auth/callback`
+4. L'app intercepte ce deep-link et vérifie la session
+
+> **Note backend** : Si le Google OAuth ne fonctionne toujours pas, vérifiez que dans la Google Console → Authorized redirect URIs vous avez bien `https://ai-fake-news-detector01.vercel.app/api/auth/callback/google`.
+
+---
 
 ## Getting Started
 
-### Prerequisites
-- Node.js 18+
-- Expo CLI: `npm install -g expo-cli`
-- Expo Go app on your phone
-
-### Install & Run
 ```bash
 npm install
 npx expo start
 ```
-Scan the QR code with **Expo Go** on your phone.
 
-### Build for Android (APK)
+Scan le QR code avec **Expo Go (SDK 53)** sur ton téléphone.
+
+## Build APK
+
 ```bash
 npm install -g eas-cli
 eas login
 eas build --platform android --profile preview
-```
-
-### Build for Google Play Store
-```bash
-eas build --platform android --profile production
-eas submit --platform android
-```
-
-## Project Structure
-```
-app/
-  _layout.jsx          # Root layout + AuthProvider
-  result.jsx           # Analysis result screen
-  (auth)/
-    login.jsx          # Login screen
-    signup.jsx         # Signup screen
-  (tabs)/
-    _layout.jsx        # Bottom tab navigation
-    index.jsx          # Home / Analyze
-    history.jsx        # Analysis history
-    live.jsx           # Live news feed
-    quiz.jsx           # News quiz
-    dashboard.jsx      # User dashboard
-    profile.jsx        # User profile
-services/
-  api.js               # All API calls to Vercel backend
-  AuthContext.js       # Global authentication state
-constants/
-  theme.js             # Colors, spacing, border radius
 ```

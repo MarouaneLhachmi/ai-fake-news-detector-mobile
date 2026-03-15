@@ -31,7 +31,7 @@ export default function HomeScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images', // SDK 53: use string instead of MediaTypeOptions.Images
       quality: 0.8,
       base64: false,
     });
@@ -44,7 +44,10 @@ export default function HomeScreen() {
       Alert.alert('Permission needed', 'Please allow camera access.');
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: 'images',
+      quality: 0.8,
+    });
     if (!result.canceled) setImageUri(result.assets[0].uri);
   };
 

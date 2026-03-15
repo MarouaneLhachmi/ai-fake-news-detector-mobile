@@ -10,73 +10,110 @@ import { Colors, Spacing, BorderRadius } from '../../constants/theme';
 export default function QuizScreen() {
   const [questions, setQuestions] = useState([]);
   const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(null); // index of chosen option
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
+  const [error, setError] = useState(null);
 
   const startQuiz = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await generateQuiz();
+      // Backend returns { questions: [...] }
+      // Each question: { question, options: [...], correctAnswer: 0|1|2|3, explanation }
       const q = data?.questions || data || [];
-      if (!q.length) { Alert.alert('No questions available', 'Try again later.'); setLoading(false); return; }
+      if (!Array.isArray(q) || !q.length) {
+        setError('No questions returned. Try again.');
+        setLoading(false);
+        return;
+      }
       setQuestions(q);
       setCurrent(0);
       setScore(0);
-      setSelected(null);
+      setSelectedIndex(null);
       setFinished(false);
       setStarted(true);
-    } catch {
-      Alert.alert('Error', 'Could not load quiz. Try again.');
+    } catch (e) {
+      setError(e?.message || 'Could not load quiz. Try again.');
     }
     setLoading(false);
   };
 
-  const handleAnswer = (answer) => {
-    if (selected !== null) return;
-    setSelected(answer);
+  // selectedIndex = index of the option the user tapped
+  const handleAnswer = (optionIndex) => {
+    if (selectedIndex !== null) return; // already answered
+    setSelectedIndex(optionIndex);
     const q = questions[current];
-    const correct = q.correctAnswer ?? q.answer;
-    if (answer === correct) setScore(s => s + 1);
+    const correctIdx = q.correctAnswer; // always an index (0-3) from backend
+    if (optionIndex === correctIdx) setScore(s => s + 1);
   };
 
   const handleNext = () => {
+    const q = questions[current];
+    const correctIdx = q.correctAnswer;
+    const wasCorrect = selectedIndex === correctIdx;
+
     if (current + 1 >= questions.length) {
       setFinished(true);
-      saveQuizScore(score + (selected === (questions[current].correctAnswer ?? questions[current].answer) ? 0 : 0), questions.length).catch(() => {});
+      const finalScore = score + (wasCorrect ? 0 : 0); // score already incremented in handleAnswer
+      saveQuizScore(score, questions.length).catch(() => {});
     } else {
       setCurrent(c => c + 1);
-      setSelected(null);
+      setSelectedIndex(null);
     }
   };
 
-  const getOptionStyle = (option) => {
-    if (selected === null) return styles.option;
-    const correct = questions[current].correctAnswer ?? questions[current].answer;
-    if (option === correct) return [styles.option, styles.optionCorrect];
-    if (option === selected && option !== correct) return [styles.option, styles.optionWrong];
+  const getOptionStyle = (optionIndex) => {
+    if (selectedIndex === null) return styles.option;
+    const correctIdx = questions[current].correctAnswer;
+    if (optionIndex === correctIdx) return [styles.option, styles.optionCorrect];
+    if (optionIndex === selectedIndex && optionIndex !== correctIdx) return [styles.option, styles.optionWrong];
     return [styles.option, styles.optionDimmed];
   };
 
-  // Start screen
+  const getOptionIcon = (optionIndex) => {
+    if (selectedIndex === null) return null;
+    const correctIdx = questions[current].correctAnswer;
+    if (optionIndex === correctIdx) return <Ionicons name="checkmark-circle" size={20} color={Colors.success} />;
+    if (optionIndex === selectedIndex) return <Ionicons name="close-circle" size={20} color={Colors.danger} />;
+    return <Ionicons name="ellipse-outline" size={20} color={Colors.textMuted} />;
+  };
+
+  // ── Start / Error screen ──────────────────────────────
   if (!started) {
     return (
       <View style={styles.center}>
         <Ionicons name="help-circle" size={72} color={Colors.primary} />
         <Text style={styles.startTitle}>News Quiz</Text>
-        <Text style={styles.startSubtitle}>Test your ability to spot fake news with AI-generated questions</Text>
+        <Text style={styles.startSubtitle}>
+          Test your ability to spot fake news with AI-generated questions
+        </Text>
+
+        {error && (
+          <View style={styles.errorBox}>
+            <Ionicons name="warning-outline" size={18} color={Colors.danger} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
         <TouchableOpacity style={styles.startBtn} onPress={startQuiz} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : (
-            <><Ionicons name="play" size={20} color="#fff" /><Text style={styles.startBtnText}>Start Quiz</Text></>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="play" size={20} color="#fff" />
+              <Text style={styles.startBtnText}>{error ? 'Retry' : 'Start Quiz'}</Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
     );
   }
 
-  // Results screen
+  // ── Results screen ────────────────────────────────────
   if (finished) {
     const pct = Math.round((score / questions.length) * 100);
     return (
@@ -87,18 +124,22 @@ export default function QuizScreen() {
         <Text style={[styles.startSubtitle, { color: pct >= 70 ? Colors.success : Colors.danger }]}>
           {pct >= 70 ? 'Great job! You have a good eye for fake news.' : 'Keep practicing to improve!'}
         </Text>
-        <TouchableOpacity style={styles.startBtn} onPress={startQuiz}>
-          <Ionicons name="refresh" size={20} color="#fff" />
-          <Text style={styles.startBtnText}>Try Again</Text>
+        <TouchableOpacity style={styles.startBtn} onPress={startQuiz} disabled={loading}>
+          {loading ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <Ionicons name="refresh" size={20} color="#fff" />
+              <Text style={styles.startBtnText}>Try Again</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     );
   }
 
-  // Quiz screen
+  // ── Quiz screen ───────────────────────────────────────
   const q = questions[current];
-  const options = q?.options || q?.choices || [];
-  const correct = q?.correctAnswer ?? q?.answer;
+  const options = q?.options || [];
+  const correctIdx = q?.correctAnswer;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -117,38 +158,33 @@ export default function QuizScreen() {
         {q?.context && <Text style={styles.contextText}>{q.context}</Text>}
       </View>
 
-      {/* Options */}
+      {/* Options — iterated by index */}
       <View style={styles.optionsContainer}>
-        {options.map((option, i) => {
-          const isCorrect = option === correct;
-          const isSelected = selected === option;
-          return (
-            <TouchableOpacity key={i} style={getOptionStyle(option)} onPress={() => handleAnswer(option)}>
-              <View style={styles.optionInner}>
-                {selected !== null && (
-                  <Ionicons
-                    name={isCorrect ? 'checkmark-circle' : isSelected ? 'close-circle' : 'ellipse-outline'}
-                    size={20}
-                    color={isCorrect ? Colors.success : isSelected ? Colors.danger : Colors.textMuted}
-                  />
-                )}
-                <Text style={styles.optionText}>{option}</Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+        {options.map((option, i) => (
+          <TouchableOpacity
+            key={i}
+            style={getOptionStyle(i)}
+            onPress={() => handleAnswer(i)}
+            disabled={selectedIndex !== null}
+          >
+            <View style={styles.optionInner}>
+              {getOptionIcon(i)}
+              <Text style={styles.optionText}>{option}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Explanation */}
-      {selected !== null && q?.explanation && (
+      {/* Explanation after answering */}
+      {selectedIndex !== null && q?.explanation && (
         <View style={styles.explanationCard}>
           <Ionicons name="bulb-outline" size={18} color={Colors.warning} />
           <Text style={styles.explanationText}>{q.explanation}</Text>
         </View>
       )}
 
-      {/* Next */}
-      {selected !== null && (
+      {/* Next button */}
+      {selectedIndex !== null && (
         <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
           <Text style={styles.nextBtnText}>
             {current + 1 >= questions.length ? 'See Results' : 'Next Question'}
@@ -172,6 +208,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md, borderRadius: BorderRadius.full, marginTop: Spacing.md,
   },
   startBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: Colors.danger,
+    padding: Spacing.md, marginTop: Spacing.md, width: '100%',
+  },
+  errorText: { color: Colors.danger, flex: 1, fontSize: 13 },
   scoreText: { color: Colors.primary, fontSize: 48, fontWeight: '700', marginVertical: Spacing.sm },
   progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.sm },
   progressText: { color: Colors.textSecondary, fontSize: 13 },

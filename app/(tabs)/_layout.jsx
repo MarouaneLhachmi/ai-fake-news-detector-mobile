@@ -35,48 +35,12 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Analyze',
-          tabBarIcon: ({ color, size }) => <Ionicons name="search" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="live"
-        options={{
-          title: 'Live News',
-          tabBarIcon: ({ color, size }) => <Ionicons name="radio" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'History',
-          tabBarIcon: ({ color, size }) => <Ionicons name="time" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="quiz"
-        options={{
-          title: 'Quiz',
-          tabBarIcon: ({ color, size }) => <Ionicons name="help-circle" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Analyze', tabBarIcon: ({ color, size }) => <Ionicons name="search" size={size} color={color} /> }} />
+      <Tabs.Screen name="live" options={{ title: 'Live News', tabBarIcon: ({ color, size }) => <Ionicons name="radio" size={size} color={color} /> }} />
+      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: ({ color, size }) => <Ionicons name="time" size={size} color={color} /> }} />
+      <Tabs.Screen name="quiz" options={{ title: 'Quiz', tabBarIcon: ({ color, size }) => <Ionicons name="help-circle" size={size} color={color} /> }} />
+      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard', tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart" size={size} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }} />
     </Tabs>
   );
 }
