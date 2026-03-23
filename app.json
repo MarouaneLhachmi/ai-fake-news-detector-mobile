@@ -5,7 +5,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.marouanelhachmi.aifakenewsdetector"
@@ -27,19 +29,33 @@
       "expo-secure-store",
       [
         "expo-camera",
-        { "cameraPermission": "Allow AI Fake News Detector to access your camera." }
+        {
+          "cameraPermission": "Allow AI Fake News Detector to access your camera."
+        }
       ],
       [
         "expo-image-picker",
-        { "photosPermission": "Allow AI Fake News Detector to access your photos." }
-      ]
+        {
+          "photosPermission": "Allow AI Fake News Detector to access your photos."
+        }
+      ],
+      "expo-web-browser"
     ],
     "scheme": "aifakenewsdetector",
     "extra": {
-      "router": { "origin": false },
+      "router": {
+        "origin": false
+      },
       "eas": {
         "projectId": "505af80c-d79f-424e-a2a0-6cdaf0827591"
       }
-    }
+    },
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d1117"
+    },
+    "newArchEnabled": true
   }
 }
