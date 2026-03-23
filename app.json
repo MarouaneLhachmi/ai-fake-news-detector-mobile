@@ -51,6 +51,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#0d1117"
     },
-    "newArchEnabled": false
+    "newArchEnabled": true
   }
 }
