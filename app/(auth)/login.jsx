@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Alert, AppState,
+  StyleSheet, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../services/AuthContext';
@@ -11,7 +12,6 @@ import { Colors, Spacing, BorderRadius } from '../../constants/theme';
 
 const BASE_URL = 'https://ai-fake-news-detector01.vercel.app';
 
-// Required for expo-web-browser to handle the auth session
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
@@ -20,78 +20,57 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
-  const { setUser } = useAuth();
+  const { user, setUser } = useAuth();
 
-  const googlePending = useRef(false);
-  const appStateRef = useRef(AppState.currentState);
-
-  // Detect when user returns to the app after Google OAuth
+  // Navigate to tabs only after user state is fully updated (avoids race condition crash)
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextState) => {
-      if (
-        appStateRef.current.match(/inactive|background/) &&
-        nextState === 'active' &&
-        googlePending.current
-      ) {
-        googlePending.current = false;
-        setGoogleLoading(true);
-        try {
-          const sessionRes = await fetch(`${BASE_URL}/api/auth/session`, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' },
-          });
-          const session = await sessionRes.json();
-          if (session?.user) {
-            setUser(session.user);
-            router.replace('/(tabs)');
-          } else {
-            Alert.alert(
-              'Sign-in incomplete',
-              'Please use Email/Password login, or try Google again.'
-            );
-          }
-        } catch {
-          Alert.alert('Error', 'Could not verify session. Try again.');
-        }
-        setGoogleLoading(false);
-      }
-      appStateRef.current = nextState;
-    });
-    return () => subscription.remove();
-  }, []);
+    if (user) router.replace('/(tabs)');
+  }, [user]);
 
-  // Google OAuth via Chrome Custom Tab (accepted by Google, shares cookies)
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      const callbackUrl = encodeURIComponent(BASE_URL);
+      // Deep link that Chrome Custom Tab will redirect back to after OAuth
+      const redirectUri = Linking.createURL('/');
+      const callbackUrl = encodeURIComponent(redirectUri);
       const googleOAuthUrl = `${BASE_URL}/api/auth/signin/google?callbackUrl=${callbackUrl}`;
 
-      googlePending.current = true;
+      // openAuthSessionAsync closes the browser automatically when it detects the deep link
+      const result = await WebBrowser.openAuthSessionAsync(googleOAuthUrl, redirectUri);
 
-      // Opens Chrome Custom Tab on Android / SFSafariViewController on iOS
-      // Google accepts these as "secure browsers" unlike plain WebView
-      const result = await WebBrowser.openBrowserAsync(googleOAuthUrl, {
-        showTitle: true,
-        toolbarColor: '#0d1117',
-        secondaryToolbarColor: '#3b82f6',
-        enableBarCollapsing: false,
-      });
-
-      // If user dismissed the browser without completing login
-      if (result.type === 'cancel' || result.type === 'dismiss') {
-        googlePending.current = false;
-        setGoogleLoading(false);
+      if (result.type === 'success') {
+        // Browser was dismissed after redirect to our deep link — check session
+        const res = await fetch(`${BASE_URL}/api/auth/session`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+        });
+        const session = await res.json().catch(() => null);
+        if (session?.user) {
+          await setUser(session.user);
+          // useEffect above handles navigation
+        } else {
+          Alert.alert(
+            'Google sign-in incomplete',
+            'The session could not be verified. Please ask the admin to whitelist "aifakenewsdetector://" in the backend NextAuth config, or use Email/Password login.'
+          );
+        }
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        // User closed the browser — check if they completed login anyway
+        const res = await fetch(`${BASE_URL}/api/auth/session`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+        }).catch(() => null);
+        const session = res?.ok ? await res.json().catch(() => null) : null;
+        if (session?.user) {
+          await setUser(session.user);
+        }
       }
-      // If completed, AppState listener will handle the session check
-    } catch (e) {
-      googlePending.current = false;
-      setGoogleLoading(false);
+    } catch {
       Alert.alert('Error', 'Could not open Google sign-in.');
     }
+    setGoogleLoading(false);
   };
 
-  // Credentials login
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields.');
@@ -117,11 +96,11 @@ export default function LoginScreen() {
         credentials: 'include',
         headers: { 'Accept': 'application/json' },
       });
-      const session = await sessionRes.json();
+      const session = await sessionRes.json().catch(() => null);
 
       if (session?.user) {
-        setUser(session.user);
-        router.replace('/(tabs)');
+        await setUser(session.user);
+        // useEffect above handles navigation — no router.replace here (avoids race condition)
       } else {
         Alert.alert('Login Failed', 'Invalid email or password.');
       }
@@ -157,15 +136,6 @@ export default function LoginScreen() {
           {googleLoading ? 'Opening browser...' : 'Continue with Google'}
         </Text>
       </TouchableOpacity>
-
-      {googleLoading && (
-        <View style={styles.hintBox}>
-          <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
-          <Text style={styles.hintText}>
-            Complete sign-in in the browser, then return to this app.
-          </Text>
-        </View>
-      )}
 
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
@@ -233,13 +203,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#4285F4', borderRadius: BorderRadius.md, padding: Spacing.md,
   },
   googleText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  hintBox: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: 'rgba(59,130,246,0.1)', borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.primary,
-    padding: Spacing.md, marginTop: Spacing.sm,
-  },
-  hintText: { color: Colors.textSecondary, flex: 1, fontSize: 13, lineHeight: 18 },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.lg },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
   dividerText: { color: Colors.textMuted, marginHorizontal: Spacing.md, fontSize: 13 },
