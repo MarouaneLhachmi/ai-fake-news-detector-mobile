@@ -30,7 +30,7 @@ export default function SignupScreen() {
         { text: 'OK', onPress: () => router.replace('/(auth)/login') },
       ]);
     } catch (e) {
-      Alert.alert('Error', e?.response?.data?.error || 'Signup failed.');
+      Alert.alert('Error', e.message || 'Signup failed.');
     }
     setLoading(false);
   };
