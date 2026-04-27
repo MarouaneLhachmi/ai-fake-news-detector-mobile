@@ -34,7 +34,9 @@
           "cameraPermission": "Allow AI Fake News Detector to access your camera."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-asset",
+      "expo-font"
     ],
     "scheme": "aifakenewsdetector",
     "extra": {
